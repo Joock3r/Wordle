@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מילת היום</title>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #07080f;
+      --panel:    #0d0f1c;
+      --card:     #131627;
+      --border:   #1e2240;
+      --accent:   #5b6ef5;
+      --accent2:  #3d4fcc;
+      --glow:     rgba(91,110,245,0.35);
+      --gold:     #f5c842;
+      --success:  #38e07a;
+      --danger:   #f05365;
+      --text:     #e8eaff;
+      --muted:    #5a5f88;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    /* Subtle grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(91,110,245,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(91,110,245,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ===== OVERLAY ===== */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7,8,15,0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      backdrop-filter: blur(6px);
+      padding: 20px;
+    }
+
+    .overlay-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px 28px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .overlay-card::before {
+      content: '';
+      position: absolute;
+      top: -60px; left: 50%;
+      transform: translateX(-50%);
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(91,110,245,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .overlay-emoji {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .overlay-title {
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+
+    .overlay-body {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    .overlay-body strong { color: var(--text); }
+
+    .record-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(245,200,66,0.1);
+      border: 1px solid rgba(245,200,66,0.3);
+      border-radius: 100px;
+      padding: 8px 18px;
+      font-family: 'Space Mono', monospace;
+      color: var(--gold);
+      font-size: 0.95rem;
+      margin-bottom: 20px;
+    }
+
+    .overlay-letters {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .overlay-letter {
+      width: 48px; height: 48px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .start-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 0 0 rgba(91,110,245,0);
+    }
+
+    .start-btn:hover {
+      background: var(--accent2);
+      box-shadow: 0 0 24px var(--glow);
+      transform: translateY(-1px);
+    }
+
+    .start-btn:active { transform: scale(0.98); }
+
+    /* ===== RESULT OVERLAY ===== */
+    .result-score {
+      font-family: 'Space Mono', monospace;
+      font-size: 4rem;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+      margin: 12px 0 4px;
+    }
+
+    .result-label {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+
+    .new-record-msg {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 12px;
+      animation: pulse 1.2s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .result-words {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      max-height: 130px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+      padding: 4px;
+    }
+
+    .result-words::-webkit-scrollbar { width: 4px; }
+    .result-words::-webkit-scrollbar-track { background: transparent; }
+    .result-words::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .tomorrow-msg {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    /* ===== MAIN CONTAINER ===== */
+    .container {
+      max-width: 480px;
+      width: 100%;
+      position: relative;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .game-title {
+      font-size: 1.6rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+    }
+
+    .game-date {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ===== STATS ROW ===== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .stat-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .stat-lbl {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .stat-val {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .stat-val.timer-val { color: var(--accent); }
+    .stat-val.timer-val.urgent { color: var(--danger); animation: blink 0.7s ease infinite; }
+    .stat-val.gold-val { color: var(--gold); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ===== LETTERS PANEL ===== */
+    .letters-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .letters-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 14px;
+    }
+
+    .letters-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .letter-tile {
+      position: relative;
+      width: 58px; height: 58px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+      user-select: none;
+    }
+
+    .letter-tile:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--glow);
+    }
+
+    .letter-tile:active {
+      transform: scale(0.93);
+    }
+
+    .letter-tile.pressed {
+      animation: press 0.2s ease;
+    }
+
+    @keyframes press {
+      0% { transform: scale(1); }
+      50% { transform: scale(0.88); background: var(--accent2); }
+      100% { transform: scale(1); }
+    }
+
+    /* ===== INPUT ROW ===== */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .word-input {
+      flex: 1;
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 16px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 1.1rem;
+      color: var(--text);
+      direction: rtl;
+      text-align: right;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .word-input::placeholder { color: var(--muted); }
+
+    .word-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,110,245,0.15);
+    }
+
+    .word-input.shake {
+      border-color: var(--danger);
+      animation: shake 0.35s ease;
+    }
+
+    .word-input.flash-ok {
+      border-color: var(--success);
+      box-shadow: 0 0 0 3px rgba(56,224,122,0.15);
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-7px); }
+      60% { transform: translateX(7px); }
+      80% { transform: translateX(-4px); }
+    }
+
+    .check-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      padding: 13px 20px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.2s;
+      white-space: nowrap;
+    }
+
+    .check-btn:hover:not(:disabled) {
+      background: var(--accent2);
+      box-shadow: 0 0 18px var(--glow);
+    }
+
+    .check-btn:active:not(:disabled) { transform: scale(0.96); }
+
+    .check-btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    /* ===== FEEDBACK ===== */
+    .feedback-line {
+      min-height: 22px;
+      text-align: center;
+      font-size: 0.88rem;
+      font-weight: 500;
+      margin-bottom: 14px;
+      transition: opacity 0.3s;
+    }
+
+    .feedback-line.ok  { color: var(--success); }
+    .feedback-line.err { color: var(--danger); }
+    .feedback-line.dim { color: var(--muted); }
+
+    /* ===== WORDS LIST ===== */
+    .words-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      min-height: 110px;
+    }
+
+    .words-panel-header {
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .words-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .word-chip {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      animation: chipIn 0.22s cubic-bezier(.34,1.56,.64,1);
+    }
+
+    @keyframes chipIn {
+      from { transform: scale(0.6); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    .empty-hint {
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-align: center;
+      padding: 16px 0;
+    }
+
+    /* ===== SPINNING LOADER ===== */
+    .loader {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(91,110,245,0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== OVERLAY ===== -->
+<div class="overlay" id="overlay">
+  <div class="overlay-card" id="overlayCard">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<!-- ===== GAME ===== -->
+<div class="container">
+
+  <div class="header">
+    <div class="game-title">🔤 מילת היום</div>
+    <div class="game-date" id="dateLabel"></div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-lbl">⏱ זמן</div>
+      <div class="stat-val timer-val" id="timerVal">05:00</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-lbl">📝 מילים</div>
+      <div class="stat-val" id="wordCountVal">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-lbl">🏆 שיא</div>
+      <div class="stat-val gold-val" id="highScoreVal">0</div>
+    </div>
+  </div>
+
+  <div class="letters-panel">
+    <div class="letters-hint">לחצו על אות להוספה לשדה הקלט</div>
+    <div class="letters-row" id="lettersRow"></div>
+  </div>
+
+  <div class="input-row">
+    <input
+      type="text"
+      class="word-input"
+      id="wordInput"
+      placeholder="הקלידו מילה בעברית…"
+      dir="rtl"
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"
+      maxlength="20"
+    >
+    <button class="check-btn" id="checkBtn" onclick="submitWord()">בדוק</button>
+  </div>
+
+  <div class="feedback-line" id="feedbackLine"></div>
+
+  <div class="words-panel">
+    <div class="words-panel-header" id="wordsPanelHeader">מילים שנמצאו</div>
+    <div class="words-wrap" id="wordsWrap">
+      <div class="empty-hint" id="emptyHint">עדיין לא נמצאו מילים — בהצלחה!</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════
+const GAME_SECS   = 5 * 60;
+const LETTER_POOL = 'אאאאבבבגגדדדהההווווזזחחטיייייייכלללמממממנננססעעעפצקקקרררששששתתת';
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let state = {
+  letters:    [],
+  found:      [],
+  timeLeft:   GAME_SECS,
+  interval:   null,
+  playing:    false,
+  checking:   false,
+  highScore:  0,
+  todayKey:   '',
+};
+
+// ═══════════════════════════════════════════
+//  DATE UTILS
+// ═══════════════════════════════════════════
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+
+function todayLabel() {
+  const d   = new Date();
+  const days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const months = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
+                  'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  return `יום ${days[d.getDay()]} · ${d.getDate()} ב${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ═══════════════════════════════════════════
+//  DAILY LETTERS (seeded by date)
+// ═══════════════════════════════════════════
+function getDailyLetters(key) {
+  let seed = 0;
+  for (let i = 0; i < key.length; i++) {
+    seed = Math.imul(seed, 31) + key.charCodeAt(i) | 0;
+  }
+  seed ^= (seed >>> 16);
+  seed  = Math.imul(seed, 0x45d9f3b);
+  seed ^= (seed >>> 16);
+
+  const result = [];
+  for (let i = 0; i < 5; i++) {
+    seed = Math.imul(seed, 1664525) + 1013904223 | 0;
+    result.push(LETTER_POOL[Math.abs(seed) % LETTER_POOL.length]);
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════
+//  WORD VALIDATION
+// ═══════════════════════════════════════════
+function canForm(word, letters) {
+  const pool = [...letters];
+  for (const ch of word) {
+    const i = pool.indexOf(ch);
+    if (i === -1) return false;
+    pool.splice(i, 1);
+  }
+  return true;
+}
+
+async function isRealHebrew(word) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 80,
+      system: 'Answer ONLY with a JSON object — no markdown, no prose.',
+      messages: [{
+        role: 'user',
+        content: `Is "${word}" a real Hebrew word (any form, plural, conjugated, colloquial allowed)? Reply: {"valid":true} or {"valid":false}`
+      }]
+    })
+  });
+  const data = await res.json();
+  const txt  = data.content.map(c => c.text || '').join('').replace(/```json|```/g,'').trim();
+  return JSON.parse(txt).valid === true;
+}
+
+// ═══════════════════════════════════════════
+//  STORAGE (window.storage)
+// ═══════════════════════════════════════════
+async function loadData() {
+  try {
+    const hs = await window.storage.get('hs');
+    if (hs) state.highScore = parseInt(hs.value) || 0;
+
+    const td = await window.storage.get('day-' + state.todayKey);
+    if (td) return JSON.parse(td.value);
+  } catch(e) {}
+  return null;
+}
+
+async function saveHS(n) {
+  if (n > state.highScore) {
+    state.highScore = n;
+    try { await window.storage.set('hs', String(n)); } catch(e) {}
+  }
+}
+
+async function saveToday(obj) {
+  try { await window.storage.set('day-' + state.todayKey, JSON.stringify(obj)); } catch(e) {}
+}
+
+// ═══════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════
+function fmt(sec) {
+  return String(Math.floor(sec / 60)).padStart(2,'0') + ':' + String(sec % 60).padStart(2,'0');
+}
+
+function feedback(msg, cls) {
+  const el = document.getElementById('feedbackLine');
+  el.innerHTML = msg;
+  el.className  = 'feedback-line ' + cls;
+}
+
+function renderLetters() {
+  const row = document.getElementById('lettersRow');
+  row.innerHTML = '';
+  state.letters.forEach(l => {
+    const t = document.createElement('div');
+    t.className   = 'letter-tile';
+    t.textContent = l;
+    t.onclick = () => {
+      if (!state.playing) return;
+      t.classList.remove('pressed');
+      void t.offsetWidth;
+      t.classList.add('pressed');
+      const inp = document.getElementById('wordInput');
+      inp.value += l;
+      inp.focus();
+    };
+    row.appendChild(t);
+  });
+}
+
+function addChip(word) {
+  const wrap = document.getElementById('wordsWrap');
+  document.getElementById('emptyHint')?.remove();
+  const chip = document.createElement('div');
+  chip.className   = 'word-chip';
+  chip.textContent = word;
+  wrap.appendChild(chip);
+  document.getElementById('wordCountVal').textContent = state.found.length;
+  document.getElementById('wordsPanelHeader').textContent = `מילים שנמצאו (${state.found.length})`;
+}
+
+function shake(inp) {
+  inp.classList.remove('shake');
+  void inp.offsetWidth;
+  inp.classList.add('shake');
+  setTimeout(() => inp.classList.remove('shake'), 400);
+}
+
+// ═══════════════════════════════════════════
+//  SUBMIT
+// ═══════════════════════════════════════════
+async function submitWord() {
+  if (!state.playing || state.checking) return;
+
+  const inp  = document.getElementById('wordInput');
+  const word = inp.value.trim();
+  if (!word) return;
+
+  if (word.length < 2) {
+    feedback('⚠️ המילה חייבת להכיל לפחות 2 אותיות', 'err');
+    shake(inp); return;
+  }
+
+  if (state.found.includes(word)) {
+    feedback('🔁 כבר מצאתם את המילה הזו', 'err');
+    shake(inp); return;
+  }
+
+  if (!canForm(word, state.letters)) {
+    feedback('❌ המילה מכילה אותיות שאינן ברשימה', 'err');
+    shake(inp); return;
+  }
+
+  // AI check
+  state.checking = true;
+  document.getElementById('checkBtn').disabled = true;
+  feedback('בודק… <span class="loader"></span>', 'dim');
+
+  try {
+    const ok = await isRealHebrew(word);
+    if (ok) {
+      state.found.push(word);
+      inp.value = '';
+      inp.classList.add('flash-ok');
+      setTimeout(() => inp.classList.remove('flash-ok'), 600);
+      addChip(word);
+      feedback(`✅ ${word} — מילה תקינה!`, 'ok');
+    } else {
+      feedback(`❌ "${word}" — לא נמצאה במילון`, 'err');
+      shake(inp);
+    }
+  } catch(e) {
+    feedback('⚠️ שגיאת חיבור, נסו שנית', 'err');
+  }
+
+  state.checking = false;
+  document.getElementById('checkBtn').disabled = false;
+  inp.focus();
+}
+
+// ═══════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════
+function startTimer() {
+  state.interval = setInterval(async () => {
+    state.timeLeft--;
+    const tv = document.getElementById('timerVal');
+    tv.textContent = fmt(state.timeLeft);
+    if (state.timeLeft <= 30) tv.classList.add('urgent');
+    if (state.timeLeft <= 0) {
+      clearInterval(state.interval);
+      state.playing = false;
+      await endGame();
+    }
+  }, 1000);
+}
+
+// ═══════════════════════════════════════════
+//  START / END
+// ═══════════════════════════════════════════
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  state.playing = true;
+  renderLetters();
+  startTimer();
+  const inp = document.getElementById('wordInput');
+  inp.focus();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') submitWord(); });
+}
+
+async function endGame() {
+  const score    = state.found.length;
+  const isRecord = score > state.highScore;
+  await saveHS(score);
+  await saveToday({ played: true, score, words: state.found });
+  document.getElementById('highScoreVal').textContent = state.highScore;
+  showResult(score, isRecord);
+}
+
+// ═══════════════════════════════════════════
+//  OVERLAYS
+// ═══════════════════════════════════════════
+function buildLetterTiles(letters) {
+  return letters.map(l => `<div class="overlay-letter">${l}</div>`).join('');
+}
+
+function buildChips(words) {
+  if (!words.length) return '<span style="color:var(--muted);font-size:.85rem">לא נמצאו מילים</span>';
+  return words.map(w => `<div class="word-chip">${w}</div>`).join('');
+}
+
+function showStart(todayData) {
+  const hasRecord = state.highScore > 0;
+  const card = document.getElementById('overlayCard');
+
+  if (todayData && todayData.played) {
+    card.innerHTML = `
+      <span class="overlay-emoji">✅</span>
+      <div class="overlay-title">שיחקתם היום!</div>
+      <div class="result-score">${todayData.score}</div>
+      <div class="result-label">מילים נמצאו</div>
+      ${hasRecord ? `<div class="record-badge">🏆 שיא: ${state.highScore}</div>` : ''}
+      <div class="result-words">${buildChips(todayData.words || [])}</div>
+      <div class="tomorrow-msg">המשחק הבא יהיה זמין מחר 🌅</div>
+    `;
+  } else {
+    card.innerHTML = `
+      <span class="overlay-emoji">🔤</span>
+      <div class="overlay-title">מילת היום</div>
+      <div class="overlay-body">
+        מצאו כמה שיותר מילים בעברית שניתן לבנות מ-5 האותיות הבאות.<br>
+        <strong>5 דקות, כל מילה נבדקת בזמן אמת!</strong>
+      </div>
+      ${hasRecord ? `<div class="record-badge">🏆 שיא: ${state.highScore} מילים</div>` : ''}
+      <div class="overlay-letters">${buildLetterTiles(state.letters)}</div>
+      <button class="start-btn" onclick="startGame()">התחילו לשחק ▶</button>
+    `;
+  }
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function showResult(score, isRecord) {
+  const card = document.getElementById('overlayCard');
+  card.innerHTML = `
+    <span class="overlay-emoji">⏰</span>
+    <div class="overlay-title">הזמן נגמר!</div>
+    <div class="result-score">${score}</div>
+    <div class="result-label">מילים נמצאו</div>
+    ${isRecord
+      ? `<div class="new-record-msg">🏆 שיא חדש! כל הכבוד!</div>`
+      : `<div class="record-badge">🏆 שיא: ${state.highScore}</div>`
+    }
+    <div class="result-words">${buildChips(state.found)}</div>
+    <div class="tomorrow-msg">המשחק הבא יהיה זמין מחר 🌅</div>
+  `;
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+async function init() {
+  state.todayKey = todayKey();
+  state.letters  = getDailyLetters(state.todayKey);
+
+  document.getElementById('dateLabel').textContent = todayLabel();
+  document.getElementById('timerVal').textContent  = fmt(GAME_SECS);
+  renderLetters();
+
+  const todayData = await loadData();
+  document.getElementById('highScoreVal').textContent = state.highScore;
+  showStart(todayData);
+}
+
+init();
+</script>
+</body>
+</html>
