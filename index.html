@@ -511,7 +511,7 @@
   </div>
 
   <div class="letters-panel">
-    <div class="letters-hint">לחצו על אות להוספה לשדה הקלט</div>
+    <div class="letters-hint">לחצו על אות להוספה · אותיות סופיות מותרות אם האות הרגילה ברשימה</div>
     <div class="letters-row" id="lettersRow"></div>
   </div>
 
@@ -545,8 +545,13 @@
 // ═══════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════
-const GAME_SECS   = 5 * 60;
+const GAME_SECS   = 150; // 2:30
 const LETTER_POOL = 'אאאאבבבגגדדדהההווווזזחחטיייייייכלללמממממנננססעעעפצקקקרררששששתתת';
+
+// אותיות סופיות — מיפוי מאות רגילה לסופית
+const SOFIT_MAP = { 'כ':'ך', 'מ':'ם', 'נ':'ן', 'פ':'ף', 'צ':'ץ' };
+// מיפוי הפוך: סופית → רגילה
+const SOFIT_REV = Object.fromEntries(Object.entries(SOFIT_MAP).map(([k,v])=>[v,k]));
 
 // ═══════════════════════════════════════════
 //  STATE
@@ -578,6 +583,14 @@ function todayLabel() {
   return `יום ${days[d.getDay()]} · ${d.getDate()} ב${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+function getRandomLetters() {
+  const result = [];
+  for (let i = 0; i < 5; i++) {
+    result.push(LETTER_POOL[Math.floor(Math.random() * LETTER_POOL.length)]);
+  }
+  return result;
+}
+
 // ═══════════════════════════════════════════
 //  DAILY LETTERS (seeded by date)
 // ═══════════════════════════════════════════
@@ -602,11 +615,22 @@ function getDailyLetters(key) {
 //  WORD VALIDATION
 // ═══════════════════════════════════════════
 function canForm(word, letters) {
+  // בניית pool: לכל אות רגילה נוסיף גם את הסופית שלה (אם קיימת)
   const pool = [...letters];
+  const sofitPool = letters.map(l => SOFIT_MAP[l] || null).filter(Boolean);
+
   for (const ch of word) {
-    const i = pool.indexOf(ch);
-    if (i === -1) return false;
-    pool.splice(i, 1);
+    // ננסה למצוא את האות עצמה
+    let i = pool.indexOf(ch);
+    if (i !== -1) { pool.splice(i, 1); continue; }
+
+    // אם האות היא סופית, ננסה להשתמש באות הרגילה המקורית
+    const regular = SOFIT_REV[ch];
+    if (regular) {
+      i = pool.indexOf(regular);
+      if (i !== -1) { pool.splice(i, 1); continue; }
+    }
+    return false;
   }
   return true;
 }
@@ -792,9 +816,31 @@ async function endGame() {
   const score    = state.found.length;
   const isRecord = score > state.highScore;
   await saveHS(score);
-  await saveToday({ played: true, score, words: state.found });
   document.getElementById('highScoreVal').textContent = state.highScore;
   showResult(score, isRecord);
+}
+
+function newGame() {
+  // איפוס מצב
+  clearInterval(state.interval);
+  state.letters  = getRandomLetters();
+  state.found    = [];
+  state.timeLeft = GAME_SECS;
+  state.playing  = false;
+  state.checking = false;
+
+  // איפוס UI
+  document.getElementById('timerVal').textContent = fmt(GAME_SECS);
+  document.getElementById('timerVal').classList.remove('urgent');
+  document.getElementById('wordCountVal').textContent = '0';
+  document.getElementById('wordsWrap').innerHTML = '<div class="empty-hint" id="emptyHint">עדיין לא נמצאו מילים — בהצלחה!</div>';
+  document.getElementById('wordsPanelHeader').textContent = 'מילים שנמצאו';
+  document.getElementById('wordInput').value = '';
+  document.getElementById('feedbackLine').innerHTML = '';
+  document.getElementById('feedbackLine').className = 'feedback-line';
+
+  renderLetters();
+  showStartScreen();
 }
 
 // ═══════════════════════════════════════════
@@ -809,33 +855,26 @@ function buildChips(words) {
   return words.map(w => `<div class="word-chip">${w}</div>`).join('');
 }
 
-function showStart(todayData) {
+function showStartScreen() {
   const hasRecord = state.highScore > 0;
-  const card = document.getElementById('overlayCard');
+  const sofitLetters = state.letters
+    .filter(l => SOFIT_MAP[l])
+    .map(l => `${l}/${SOFIT_MAP[l]}`)
+    .join(', ');
 
-  if (todayData && todayData.played) {
-    card.innerHTML = `
-      <span class="overlay-emoji">✅</span>
-      <div class="overlay-title">שיחקתם היום!</div>
-      <div class="result-score">${todayData.score}</div>
-      <div class="result-label">מילים נמצאו</div>
-      ${hasRecord ? `<div class="record-badge">🏆 שיא: ${state.highScore}</div>` : ''}
-      <div class="result-words">${buildChips(todayData.words || [])}</div>
-      <div class="tomorrow-msg">המשחק הבא יהיה זמין מחר 🌅</div>
-    `;
-  } else {
-    card.innerHTML = `
-      <span class="overlay-emoji">🔤</span>
-      <div class="overlay-title">מילת היום</div>
-      <div class="overlay-body">
-        מצאו כמה שיותר מילים בעברית שניתן לבנות מ-5 האותיות הבאות.<br>
-        <strong>5 דקות, כל מילה נבדקת בזמן אמת!</strong>
-      </div>
-      ${hasRecord ? `<div class="record-badge">🏆 שיא: ${state.highScore} מילים</div>` : ''}
-      <div class="overlay-letters">${buildLetterTiles(state.letters)}</div>
-      <button class="start-btn" onclick="startGame()">התחילו לשחק ▶</button>
-    `;
-  }
+  const card = document.getElementById('overlayCard');
+  card.innerHTML = `
+    <span class="overlay-emoji">🔤</span>
+    <div class="overlay-title">מצאו מילים!</div>
+    <div class="overlay-body">
+      בנו מילים בעברית מ-5 האותיות הבאות.<br>
+      <strong>2:30 דקות · כל מילה נבדקת בזמן אמת!</strong><br>
+      ${sofitLetters ? `<span style="color:var(--accent)">✨ ניתן להשתמש גם ב: ${sofitLetters}</span>` : ''}
+    </div>
+    ${hasRecord ? `<div class="record-badge">🏆 שיא: ${state.highScore} מילים</div>` : ''}
+    <div class="overlay-letters">${buildLetterTiles(state.letters)}</div>
+    <button class="start-btn" onclick="startGame()">התחילו לשחק ▶</button>
+  `;
   document.getElementById('overlay').style.display = 'flex';
 }
 
@@ -851,7 +890,7 @@ function showResult(score, isRecord) {
       : `<div class="record-badge">🏆 שיא: ${state.highScore}</div>`
     }
     <div class="result-words">${buildChips(state.found)}</div>
-    <div class="tomorrow-msg">המשחק הבא יהיה זמין מחר 🌅</div>
+    <button class="start-btn" onclick="newGame()" style="margin-top:8px">🔀 משחק חדש</button>
   `;
   document.getElementById('overlay').style.display = 'flex';
 }
@@ -860,16 +899,20 @@ function showResult(score, isRecord) {
 //  INIT
 // ═══════════════════════════════════════════
 async function init() {
-  state.todayKey = todayKey();
-  state.letters  = getDailyLetters(state.todayKey);
+  state.letters = getRandomLetters();
 
   document.getElementById('dateLabel').textContent = todayLabel();
   document.getElementById('timerVal').textContent  = fmt(GAME_SECS);
   renderLetters();
 
-  const todayData = await loadData();
+  // טען שיא קודם
+  try {
+    const hs = await window.storage.get('hs');
+    if (hs) state.highScore = parseInt(hs.value) || 0;
+  } catch(e) {}
   document.getElementById('highScoreVal').textContent = state.highScore;
-  showStart(todayData);
+
+  showStartScreen();
 }
 
 init();
